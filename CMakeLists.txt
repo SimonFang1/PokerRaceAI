@@ -9,7 +9,6 @@ include_directories("${CMAKE_SOURCE_DIR}/include")
 
 add_executable(battlewithlandlord
     src/main.cc
-    # src/hashcache.cc
     src/battlewithlandlord.cc
 )
 

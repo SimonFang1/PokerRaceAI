@@ -478,22 +478,11 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
         if (_stopsearch) return 0;
     }
 
-    auto hashtype = HashCache::ALPHA;
 #if USE_HASHMAP
     if (_hash.find(_cards[_side], _cards[1-_side], _last, depth)) {
         auto val = _hash.get();
-        if (val.hashtype == HashCache::EXACT) {
-            pv = val.path;
-            return val.score;
-        }
-        // if (val.hashtype == HashCache::ALPHA && val.score <= alpha) {
-        //     // pv = val.path;
-        //     return alpha;
-        // }
-        // if (val.hashtype == HashCache::BETA && val.score >= beta) {
-        //     // pv = val.path;
-        //     return beta;
-        // }
+        pv = val.path;
+        return val.score;
         // else continue alpha-beta search
     }
 #endif
@@ -507,13 +496,7 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
     int value;
     list<CardStyle> line;
     auto &&strategies = GenStrategy();
-    // {{
-    //   cout << Translate(_cards[_side]) << " " << Translate(_cards[1-_side]) << endl;
-    //   for (auto &&x: strategies) {
-    //     cout << Translate(x) << " ";
-    //   }
-    //   cout << endl;
-    // }}
+
     CardStyle last = _last;
     for (auto &s: strategies) {
         Move(s.pattern);
@@ -522,21 +505,19 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
         Unmove(s.pattern);
 
         if (value > beta) {
-// #if USE_HASHMAP
-//             _hash.put(_cards[_side], _cards[1-_side], _last, pv, depth, beta, HashCache::BETA);
-// #endif
             return beta;
         }
         if (value > alpha) {
             alpha = value;
             pv = line;
             pv.push_front(s);
-            hashtype = HashCache::EXACT;
         }
-        if (value > WIN_SCORE) break;
+#if !USE_HASHMAP
+        if (alpha > WIN_SCORE) break;
+#endif
     }
 #if USE_HASHMAP
-    _hash.put(_cards[_side], _cards[1-_side], _last, pv, depth, alpha, hashtype);
+    _hash.put(_cards[_side], _cards[1-_side], last, pv, depth, alpha);
 #endif
 
     _last = last;
