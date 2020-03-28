@@ -16,13 +16,13 @@ class HashCache {
         }
     };
     struct hashcode {
-        unsigned operator() (const Key &k) const {
-            unsigned res = 0;
+        std::size_t operator() (const Key &k) const {
+            std::size_t res = 0;
             for (auto x: k.card1) {
-                res ^= x;
+                res = (res << 1) ^ x;
             }
             for (auto x: k.card2) {
-                res ^= x;
+                res = (res << 1) ^ x;
             }
             return res;
         }

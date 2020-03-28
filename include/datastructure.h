@@ -16,7 +16,7 @@
 typedef char byte;
 
 #define DIFF_CARRY 1
-#define USE_HASHMAP 1
+#define USE_HASHMAP 0
 #define MAX_SCORE 30000
 #define WIN_SCORE 29000
 

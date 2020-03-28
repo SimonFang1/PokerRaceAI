@@ -16,6 +16,7 @@ using std::unordered_map;
 using std::sort;
 using std::thread;
 using std::mutex;
+using std::pair;
 
 BattleWithLandlord::BattleWithLandlord(istream &is, ostream &os):_is(is), _os(os) {
     for (char c = '3'; c <= '9'; ++c) {
@@ -142,6 +143,7 @@ void BattleWithLandlord::Run() {
     auto start = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lck(_mtx2);
     CardStyle bestmove;
+    PrintPartition();
     for (int i = 5; !_stopsearch && i < 32; ++i) {
         cout << "depth " << i << endl;
         int val = GetBestMove(i);
@@ -157,6 +159,7 @@ void BattleWithLandlord::Run() {
     }
     cout << "bestmove: " << Translate(bestmove) << endl;
 }
+
 void BattleWithLandlord::PrintCards() {
     cout << "cards0: " << Translate(_cards[0]) << endl;
     cout << "cards1: " << Translate(_cards[1]) << endl;
@@ -353,6 +356,225 @@ vector<CardStyle> BattleWithLandlord::GenStrategy_ex() {
     return res;
 }
 
+CardStyle BattleWithLandlord::GenStrategy_greedy(const std::multiset<byte> &style, const CardStyle &last) const {
+    if (style.empty()) return CardStyle();
+    map<byte, int> count;
+    for (auto c = style.begin(); c != style.end(); ++c) {
+        if (count.find(*c) != count.end()) {
+            ++count[*c];
+        } else {
+            count[*c] = 1;
+        }
+    }
+
+    for (auto c = count.begin(); c != count.end(); ++c) {
+        for (int k = std::min(c->second, 4); k>=1; --k) {
+            multiset<byte> ms;
+            for (int i = 0; i < k; ++i) {
+                ms.insert(c->first);
+            }
+            if (k == 1) {
+                int len = 1;
+                int prev = c->first;
+                for (auto it = c; it != count.end();) {
+                    if ((++it)->first != ++prev) break;
+                    ms.insert(it->first);
+                    if (++len > 4) {
+                        CardStyle res = CardStyle(CardStyle::MONO, c->first, ms, len);
+                        if (last < res) return res;
+                    }
+                }
+                CardStyle res = CardStyle(CardStyle::MONO, c->first, ms);
+                if (last < res) return res;
+            } else if (k == 2) {
+                int len = 1;
+                int prev = c->first;
+                for (auto it = c; it != count.end();) {
+                    if ((++it)->first != ++prev || it->second < k) break;
+                    ms.insert(it->first);
+                    ms.insert(it->first);
+                    if (++len > 2) {
+                       CardStyle res = CardStyle(CardStyle::PAIR, c->first, ms, len);
+                       if (last < res) return res;
+                    }
+                }
+                CardStyle res = CardStyle(CardStyle::PAIR, c->first, ms);
+                if (last < res) return res;
+            } else if (k == 3) {
+                int len = 1;
+                int prev = c->first;
+                auto count_ = count;
+                for (auto it = c; it != count.end();) {
+                    count_[it->first] -= k;
+                    for (int carry: {1, 2}) {
+                        vector<multiset<byte> > comb_res;
+                        if (GenCarry(count_, len, carry, comb_res)) {
+                            for (auto &cs: comb_res) {
+                                multiset<byte> _union = ms;
+                                for (auto x: cs) {
+                                    _union.insert(x);
+                                }
+                                CardStyle res = CardStyle(CardStyle::TRIPLE, c->first, _union, len, carry);
+                                if (last < res) return res;
+                            }
+                        }
+                    }
+                    if ((++it)->first != ++prev || it->second < k) break;
+                    ms.insert(it->first);
+                    ms.insert(it->first);
+                    ms.insert(it->first);
+                    ++len;
+                    CardStyle res = CardStyle(CardStyle::TRIPLE, c->first, ms, len);
+                    if (last < res) return res;
+                }
+                CardStyle res = CardStyle(CardStyle::TRIPLE, c->first, ms);
+                if (last < res) return res;
+            } else {
+                auto count_ = count;
+                count_[c->first] -= k;
+                for (auto carry: {1, 2}) {
+                    vector<multiset<byte> > comb_res;
+                    if (GenCarry(count_, 2, carry, comb_res)) {
+                        for (auto &cs: comb_res) {
+                            multiset<byte> _union = ms;
+                            for (auto x: cs) {
+                                _union.insert(x);
+                            }
+                            CardStyle res = CardStyle(CardStyle::QUARD, c->first, _union, 2, carry);
+                            if (last < res) return res;
+                        }
+                    }
+                }
+                CardStyle res = CardStyle(CardStyle::QUARD_BOMB, c->first, ms);
+                if (last < res) return res;
+            }
+        }
+    }
+
+    auto vice_joker = count.find(17);
+    auto joker = count.find(18);
+    if (vice_joker != count.end() && joker != count.end()){
+        multiset<byte> ms;
+        ms.insert(17);
+        ms.insert(18);
+        return CardStyle(CardStyle::JOKER_BOMB, 19, ms);
+    }
+    return CardStyle(); // pass
+}
+
+
+static void multiset_diff(multiset<byte> &a, const multiset<byte> &b) {
+    for (auto x: b) {
+        a.erase(a.find(x));
+    }
+}
+
+CardStyle BattleWithLandlord::BetterThan(const multiset<byte> &cards, const CardStyle &a, const CardStyle &b) const {
+    multiset<byte> backup1 = cards;
+    multiset<byte> backup2 = cards;
+    multiset_diff(backup1, a.pattern);
+    multiset_diff(backup2, b.pattern);
+    CardStyle pass;
+    auto item_a = GenStrategy(backup1, pass).front();
+    auto item_b = GenStrategy(backup2, pass).front();
+    if (a.pattern.size() + item_a.pattern.size() > b.pattern.size() + item_b.pattern.size()) {
+        return a;
+    }
+    return b;
+}
+
+vector<vector<CardStyle>>
+BattleWithLandlord::Partition(multiset<byte> a) const {
+    vector<vector<CardStyle>> result;
+    auto pass = CardStyle();
+    while (!a.empty()) {
+        auto items = GenStrategy(a, pass);
+        auto a_item = items.front();
+        CardStyle b_item;
+        for (auto &x: items) {
+            if (x.type != a_item.type || (x.len != a_item.len || x.carry != a_item.carry)) {
+                b_item = x;
+                break;
+            }
+        }
+        auto c_item = b_item.pattern.empty() ? a_item : BetterThan(a, a_item, b_item);
+        multiset_diff(a, c_item.pattern);
+        result.emplace_back();
+        result.back().push_back(c_item);
+        while (true) {
+            auto item = GenStrategy(a, c_item).front();
+            if (item.pattern.empty()) break;
+            multiset_diff(a, item.pattern);
+            result.back().push_back(item);
+        }
+    }
+
+    return result;
+}
+
+
+pair<vector<vector<CardStyle>>, vector<vector<CardStyle>>>
+BattleWithLandlord::Partition(multiset<byte> a, multiset<byte> b) const {
+    pair<vector<vector<CardStyle>>, vector<vector<CardStyle>>> result;
+    auto part_a = Partition(a);
+    auto part_b = Partition(b);
+
+    for (auto &vec_a: part_a ) {
+        auto &x = vec_a.front();
+        for (auto &vec_b: part_b) {
+            auto &y = vec_b.front();
+            if (x.type == y.type && x.len == y.len && x.carry == y.carry) {
+                result.first.push_back(vec_a);
+                result.second.push_back(vec_b);
+            }
+        }
+    }
+
+    // for (auto it1 = part_a.begin(); it1 != part_a.end(); ) {
+    //     bool flag = false;
+    //     for (auto it2 = part_b.begin(); it2 != part_b.end(); ) {
+    //         auto &x = it1->front();
+    //         auto &y = it2->front();
+    //         if (x.type == y.type && x.len == y.len && x.carry == y.carry) {
+    //             result.first.push_back(*it1);
+    //             result.second.push_back(*it2);
+    //             it1 = part_a.erase(it1);
+    //             it2 = part_b.erase(it2);
+    //             flag = true;
+    //             break;
+    //         }
+    //         if (flag) {
+    //             continue;
+    //         }
+    //         ++it2;
+    //     }
+    //     ++it1;
+    // }
+
+    // for (auto it1 = part_a.begin(); it1 != part_a.end(); ) {
+    //     bool flag = false;
+    //     for (auto it2 = part_b.begin(); it2 != part_b.end(); ) {
+    //         auto &x = it1->front();
+    //         auto &y = it2->front();
+    //         if (x < y || y < x) {
+    //             result.first.push_back(*it1);
+    //             result.second.push_back(*it2);
+    //             it1 = part_a.erase(it1);
+    //             it2 = part_b.erase(it2);
+    //             flag = true;
+    //             continue;
+    //         }
+    //         if (flag) {
+    //             continue;
+    //         }
+    //         ++it2;
+    //     }
+    //     ++it1;
+    // }
+
+    return result;
+}
+
 void BattleWithLandlord::Move(const multiset<byte> &pattern) {
     if (pattern.size()) {
         for (auto x: pattern) {
@@ -375,7 +597,7 @@ void BattleWithLandlord::Unmove(const multiset<byte> &pattern) {
 int BattleWithLandlord::Evaluate() const {
     if (!_cards[0].size()) return MAX_SCORE - _round;
     if (!_cards[1].size()) return -MAX_SCORE + _round;
-    int val = Eval_weight_ex();// + Eval_len_diff()*10;
+    int val = Eval_weight_ex();// + Eval_turns() * 10;
     return val;
     // return Eval_len_diff()*10 + Eval_cmp();
     // return Eval_cmp();
@@ -407,6 +629,7 @@ int BattleWithLandlord::Eval_weight_ex() const {
     return (score1 - score2) * 100;
 
 }
+
 int BattleWithLandlord::Eval_weight() const {
     const int weight[] = {
         0, 0, 0,
@@ -459,18 +682,31 @@ int BattleWithLandlord::Eval_cmp() const {
 }
 
 int BattleWithLandlord::Eval_respond() const {
-    auto &&res = GenStrategy(_cards[_side], _last);
+    auto res = GenStrategy(_cards[_side], _last);
     if (res.size()) return _side ? -1 : 1;
     return 0;
 }
 
-// int BattleWithLandlord::Eval_Monte_Carlo() const {
-//   // int total_trials = 1000, wins = 0;
-//   // auto cards = _cards;
-//   // for (cards0.size() && cards1.size()) {
-
-//   // }
-// }
+int BattleWithLandlord::Eval_turns() const {
+    auto res = Partition(_cards[_side], _cards[1 - _side]);
+    int n = res.first.size();
+    int greater = 0, less = 0;
+    for (int i = 0; i < n; ++i) {
+        auto &a = res.first[i];
+        auto &b = res.second[i];
+        for (auto &x : a) {
+            for (auto &y : b) {
+                if (x < y) {
+                    less++;
+                }
+                if (y < x) {
+                    greater--;
+                }
+            }
+        }
+    }
+    return greater - less;
+}
 
 int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle> &pv) {
     {
@@ -528,4 +764,28 @@ int BattleWithLandlord::GetBestMove(int depth) {
     if (depth <= 0) depth = 100;
     _max_depth = depth;
     return AlphaBeta(depth, -MAX_SCORE, MAX_SCORE, _pv);
+}
+
+void BattleWithLandlord::PrintPartition() {
+    auto res = Partition(_cards[_side], _cards[1-_side]);
+    int n1 = res.first.size();
+    int n2 = res.second.size();
+    for (int i = 0; i < n1; ++i) {
+        cout << "{ ";
+        for (auto &x: res.first[i]) {
+            cout << Translate(x.pattern);
+            cout << " ";
+        }
+        cout << "} ";
+    }
+    cout << endl;
+    for (int i = 0; i < n2; ++i) {
+        cout << "{ ";
+        for (auto &x: res.second[i]) {
+            cout << Translate(x.pattern);
+            cout << " ";
+        }
+        cout << "} ";
+    }
+    cout << endl;
 }
