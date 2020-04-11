@@ -1,23 +1,8 @@
 #include "battlewithlandlord.h"
 #include <chrono>
+#include <iterator>
 
-using std::cin;
-using std::cout;
-using std::endl;
-using std::istream;
-using std::ostream;
-using std::stringstream;
-using std::string;
-using std::vector;
-using std::list;
-using std::set;
-using std::multiset;
-using std::map;
-using std::unordered_map;
-using std::sort;
-using std::thread;
-using std::mutex;
-using std::pair;
+using namespace std;
 
 BattleWithLandlord::BattleWithLandlord(istream &is, ostream &os):_is(is), _os(os) {
     for (char c = '3'; c <= '9'; ++c) {
@@ -56,7 +41,6 @@ void BattleWithLandlord::cui_exec() {
             _running = false;
         } else if (cmd == "r" || cmd == "run") {
             string c1, c2, last;
-            last.clear();
             ss >> c1 >> c2 >> last;
             _stopsearch = false;
             LoadCards(c1, c2, last);
@@ -98,12 +82,12 @@ bool BattleWithLandlord::LoadCards(const string &str1, const string &str2, const
         _cards[1].insert(_name2id[x]);
     }
     bool valid;
+    _last = CardStyle();
     if (last != "" && last != "pass") {
         multiset<byte> ms;
         for (auto x: last) {
             ms.insert(_name2id[x]);
         }
-        _last = CardStyle();
         auto res = GenStrategy(ms, _last);
         valid = false;
         for (auto x: res) {
@@ -228,6 +212,9 @@ bool BattleWithLandlord::GenCarry(const map<byte, int> &count, unsigned len, int
             }
             res.push_back(ms);
         } while(next_combination(vi.begin(),vi.size(),v.size()));
+        // bug remain, need to drop repeated items
+        // fix it later
+        // this is the reason why stl do not contain next_combination
     }
     return true;
 }
@@ -254,99 +241,232 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
         ms.insert(18);
         all.emplace_back(CardStyle::JOKER_BOMB, 19, ms);
     }
-    for (auto c = count.begin(); c != count.end(); ++c) {
-        for (int k = 1; k <= c->second && k <= 4; ++k) {
-            multiset<byte> ms;
-            for (int i = 0; i < k; ++i) {
-                ms.insert(c->first);
-            }
-            if (k == 1) {
-                if (c->first > 0)
-                    all.emplace_back(CardStyle::MONO, c->first, ms);
-                else
-                    all.emplace_back(CardStyle::EXT, c->first, ms);
-                int len = 1;
-                int prev = c->first;
-                for (auto it = c; it != count.end();) {
-                    if ((++it)->first != ++prev) break;
-                    ms.insert(it->first);
-                    if (++len > 4) {
-                        all.emplace_back(CardStyle::MONO, c->first, ms, len);
-                    }
+    if (last.type == CardStyle::PASS) {
+        for (auto c = count.begin(); c != count.end(); ++c) {
+            for (int k = 1; k <= c->second && k <= 4; ++k) {
+                multiset<byte> ms;
+                for (int i = 0; i < k; ++i) {
+                    ms.insert(c->first);
                 }
-            } else if (k == 2) {
-                all.emplace_back(CardStyle::PAIR, c->first, ms);
-                int len = 1;
-                int prev = c->first;
-                for (auto it = c; it != count.end();) {
-                    if ((++it)->first != ++prev || it->second < k) break;
-                    ms.insert(it->first);
-                    ms.insert(it->first);
-                    if (++len > 2) {
-                        all.emplace_back(CardStyle::PAIR, c->first, ms, len);
+                if (k == 1) {
+                    if (c->first > 0)
+                        all.emplace_back(CardStyle::MONO, c->first, ms);
+                    else
+                        all.emplace_back(CardStyle::EXT, c->first, ms);
+                    int len = 1;
+                    int prev = c->first;
+                    for (auto it = c; next(it) != count.end();) {
+                        if ((++it)->first != ++prev) break;
+                        ms.insert(it->first);
+                        if (++len > 4) {
+                            all.emplace_back(CardStyle::MONO, c->first, ms, len);
+                        }
                     }
-                }
-            } else if (k == 3) {
-                all.emplace_back(CardStyle::TRIPLE, c->first, ms);
-                int len = 1;
-                int prev = c->first;
-                auto count_ = count;
-                for (auto it = c; it != count.end();) {
-                    count_[it->first] -= k;
-                    for (int carry: {1, 2}) {
+                } else if (k == 2) {
+                    all.emplace_back(CardStyle::PAIR, c->first, ms);
+                    int len = 1;
+                    int prev = c->first;
+                    for (auto it = c; next(it) != count.end();) {
+                        if ((++it)->first != ++prev || it->second < 2) break;
+                        ms.insert(it->first);
+                        ms.insert(it->first);
+                        if (++len > 2) {
+                            all.emplace_back(CardStyle::PAIR, c->first, ms, len);
+                        }
+                    }
+                } else if (k == 3) {
+                    all.emplace_back(CardStyle::TRIPLE, c->first, ms);
+                    int len = 1;
+                    int prev = c->first;
+
+                    for (auto it = c; next(it) != count.end();) {
+                        if ((++it)->first != ++prev || it->second < 3) break;
+                        ms.insert(it->first);
+                        ms.insert(it->first);
+                        ms.insert(it->first);
+                        ++len;
+                        all.emplace_back(CardStyle::TRIPLE, c->first, ms, len);
+                    }
+                    
+                    for (int carry : {1, 2}) {
+                        ms.clear();
+                        ms.insert(c->first);
+                        ms.insert(c->first);
+                        ms.insert(c->first);
+                        int len = 1;
+                        int prev = c->first;
+                        auto count_ = count;
+                        for (auto it = c; next(it) != count.end();) {
+                            count_[it->first] -= 3;
+
+                            vector<multiset<byte> > comb_res;
+                            if (GenCarry(count_, len, carry, comb_res)) {
+                                for (auto &cs: comb_res) {
+                                    multiset<byte> _union = ms;
+                                    for (auto x: cs) {
+                                        _union.insert(x);
+                                    }
+                                    all.emplace_back(CardStyle::TRIPLE, c->first, _union, len, carry);
+                                }
+                            }
+
+                            if ((++it)->first != ++prev || it->second < 3) break;
+                            ms.insert(it->first);
+                            ms.insert(it->first);
+                            ms.insert(it->first);
+                            ++len;
+                        }
+                    }
+                } else {
+                    all.emplace_back(CardStyle::QUARD_BOMB, c->first, ms);
+                    auto count_ = count;
+                    count_[c->first] -= 4;
+                    for (auto carry: {1, 2}) {
                         vector<multiset<byte> > comb_res;
-                        if (GenCarry(count_, len, carry, comb_res)) {
+                        if (GenCarry(count_, 2, carry, comb_res)) {
                             for (auto &cs: comb_res) {
                                 multiset<byte> _union = ms;
                                 for (auto x: cs) {
                                     _union.insert(x);
                                 }
-                                all.emplace_back(CardStyle::TRIPLE, c->first, _union, len, carry);
+                                all.emplace_back(CardStyle::QUARD, c->first, _union, 2, carry);
                             }
-                        }
-                    }
-                    if ((++it)->first != ++prev || it->second < k) break;
-                    ms.insert(it->first);
-                    ms.insert(it->first);
-                    ms.insert(it->first);
-                    ++len;
-                    all.emplace_back(CardStyle::TRIPLE, c->first, ms, len);
-                }
-            } else {
-                all.emplace_back(CardStyle::QUARD_BOMB, c->first, ms);
-                auto count_ = count;
-                count_[c->first] -= k;
-                for (auto carry: {1, 2}) {
-                    vector<multiset<byte> > comb_res;
-                    if (GenCarry(count_, 2, carry, comb_res)) {
-                        for (auto &cs: comb_res) {
-                            multiset<byte> _union = ms;
-                            for (auto x: cs) {
-                                _union.insert(x);
-                            }
-                            all.emplace_back(CardStyle::QUARD, c->first, _union, 2, carry);
                         }
                     }
                 }
             }
         }
-    }
+        sort(all.begin(), all.end(),
+             [](const CardStyle &a, const CardStyle &b) {
+             return a.pattern.size() > b.pattern.size();
+        });
+    } else {
+        for (auto c = count.begin(); c != count.end(); ++c) {
+            multiset<byte> ms;
+            if (c->second == 4) {
+                ms.insert(c->first);
+                ms.insert(c->first);
+                ms.insert(c->first);
+                ms.insert(c->first);
+                auto style = CardStyle(CardStyle::QUARD_BOMB, c->first, ms);
+                if (last < style) {
+                    all.emplace_back(style);
+                }
+                if (last.type == CardStyle::QUARD) {
+                    if (c->first <= last.id) continue;
+                    auto count_ = count;
+                    count_[c->first] -= 4;
+                    vector<multiset<byte> > comb_res;
+                    if (GenCarry(count_, 2, last.carry, comb_res)) {
+                        for (auto &cs: comb_res) {
+                            multiset<byte> _union = ms;
+                            for (auto x: cs) {
+                                _union.insert(x);
+                            }
+                            all.emplace_back(CardStyle::QUARD, c->first, _union, 2, last.carry);
+                        }
+                    }
+                }
+                continue;
+            }
+            if (last.type == CardStyle::MONO) {
+                if (c->first <= last.id) continue;
+                ms.insert(c->first);
+                if (last.len == 1) {
+                    all.emplace_back(CardStyle::MONO, c->first, ms);
+                } else {
+                    int len = 1;
+                    int prev = c->first;
+                    for (auto it = c; next(it) != count.end();) {
+                        if ((++it)->first != ++prev) break;
+                        ms.insert(it->first);
+                        if (++len > 4) {
+                            if (len == last.len) {
+                                all.emplace_back(CardStyle::MONO, c->first, ms, len);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else if (last.type == CardStyle::PAIR) {
+                if (c->first <= last.id || c->second < 2) continue;
+                ms.insert(c->first);
+                ms.insert(c->first);
+                if (last.len == 1) {
+                    all.emplace_back(CardStyle::PAIR, c->first, ms);
+                } else {
+                    int len = 1;
+                    int prev = c->first;
+                    for (auto it = c; next(it) != count.end();) {
+                        if ((++it)->first != ++prev || it->second < 2) break;
+                        ms.insert(it->first);
+                        ms.insert(it->first);
+                        if (++len > 2) {
+                            if (len == last.len) {
+                                all.emplace_back(CardStyle::PAIR, c->first, ms, len);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else if (last.type == CardStyle::TRIPLE) {
+                if (c->first <= last.id || c->second < 3) continue;
+                ms.insert(c->first);
+                ms.insert(c->first);
+                ms.insert(c->first);
+                if (last.carry == 0) {
+                    if (last.len == 1) {
+                        all.emplace_back(CardStyle::TRIPLE, c->first, ms);
+                    } else {
+                        int len = 1;
+                        int prev = c->first;
+                        for (auto it = c; next(it) != count.end();) {
+                            if ((++it)->first != ++prev || it->second < 3) break;
+                            ms.insert(it->first);
+                            ms.insert(it->first);
+                            ms.insert(it->first);
+                            ++len;
+                            if (len == last.len) {
+                                all.emplace_back(CardStyle::TRIPLE, c->first, ms, len);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    ms.clear();
+                    ms.insert(c->first);
+                    ms.insert(c->first);
+                    ms.insert(c->first);
+                    int len = 1;
+                    int prev = c->first;
+                    auto count_ = count;
+                    for (auto it = c; next(it) != count.end();) {
+                        count_[it->first] -= 3;
 
-    vector<CardStyle> strategies;
-    for (auto x: all) {
-        if (last < x) {
-            strategies.push_back(x);
-            sort(strategies.begin(), strategies.end(),
-            [](const CardStyle &a, const CardStyle &b) {
-                return a.pattern.size() > b.pattern.size();
-            });
+                        vector<multiset<byte> > comb_res;
+                        if (len == last.len && GenCarry(count_, len, last.carry, comb_res)) {
+                            for (auto &cs: comb_res) {
+                                multiset<byte> _union = ms;
+                                for (auto x: cs) {
+                                    _union.insert(x);
+                                }
+                                all.emplace_back(CardStyle::TRIPLE, c->first, _union, len, last.carry);
+                            }
+                            break;
+                        }
+
+                        if ((++it)->first != ++prev || it->second < 3) break;
+                        ms.insert(it->first);
+                        ms.insert(it->first);
+                        ms.insert(it->first);
+                        ++len;
+                    }
+                }
+            }
         }
+        all.emplace_back(); // PASS
     }
-    if (last.type != CardStyle::PASS)
-        strategies.emplace_back(); // PASS
-    // sort(strategies.begin(), strategies.end(),
-    // [](CardStyle a, CardStyle b) {return a.pattern.size() > b.pattern.size();});
-    return strategies;
+    return all;
 }
 
 vector<CardStyle> BattleWithLandlord::GenStrategy_ex() {
@@ -730,7 +850,11 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
     }
 #endif
 
-    if (depth <= 0 || !_cards[_side].size() || !_cards[1-_side].size()) {
+    auto strategies = GenStrategy();
+
+    if (!_cards[_side].size() || !_cards[1-_side].size() || 
+        depth <= 0 && strategies.size() < 1) {
+        
         auto v = Evaluate();
         int score = _side ? -v: v;
         return score;
@@ -738,7 +862,15 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
 
     int value;
     list<CardStyle> line;
-    auto &&strategies = GenStrategy();
+
+    // if (depth > _max_depth -3) {
+    //     cout << Translate(_cards[_side]) << " " << Translate(_cards[1-_side]) << endl;
+    //     for (auto &x : strategies) {
+    //         cout << Translate(x) << " ";
+    //     }
+    //     cout << endl;
+    // }
+
 
     CardStyle last = _last;
     for (auto &s: strategies) {
