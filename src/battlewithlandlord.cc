@@ -147,6 +147,7 @@ void BattleWithLandlord::Run() {
             cout << Translate(x) << " ";
         }
         cout << endl << endl;
+        if (val > WIN_SCORE || val < -WIN_SCORE) break;
     }
     cout << "bestmove: " << Translate(bestmove) << endl;
 }
@@ -862,14 +863,6 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
 
     int value;
     list<CardStyle> line;
-
-    // if (depth > _max_depth -3) {
-    //     cout << Translate(_cards[_side]) << " " << Translate(_cards[1-_side]) << endl;
-    //     for (auto &x : strategies) {
-    //         cout << Translate(x) << " ";
-    //     }
-    //     cout << endl;
-    // }
 
 
     CardStyle last = _last;
