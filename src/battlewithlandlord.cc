@@ -1,4 +1,5 @@
 #include "battlewithlandlord.h"
+#include <chrono>
 
 using std::cin;
 using std::cout;
@@ -47,9 +48,15 @@ void BattleWithLandlord::cui_exec() {
         cmd.clear();
         ss >> cmd;
         if (cmd == "q" || cmd == "quit") {
+            {
+                std::lock_guard<std::mutex> lck(_mtx);
+                _stopsearch = true;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
             _running = false;
         } else if (cmd == "r" || cmd == "run") {
             string c1, c2, last;
+            last.clear();
             ss >> c1 >> c2 >> last;
             _stopsearch = false;
             LoadCards(c1, c2, last);
@@ -143,7 +150,7 @@ void BattleWithLandlord::Run() {
     auto start = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lck(_mtx2);
     CardStyle bestmove;
-    PrintPartition();
+    // PrintPartition();
     for (int i = 5; !_stopsearch && i < 32; ++i) {
         cout << "depth " << i << endl;
         int val = GetBestMove(i);
@@ -748,12 +755,14 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
             pv = line;
             pv.push_front(s);
         }
-#if !USE_HASHMAP
+// #if !USE_HASHMAP
         if (alpha > WIN_SCORE) break;
-#endif
+// #endif
     }
 #if USE_HASHMAP
-    _hash.put(_cards[_side], _cards[1-_side], last, pv, depth, alpha);
+    if (depth == _max_depth && (alpha > WIN_SCORE || alpha < -WIN_SCORE )) {
+        _hash.put(_cards[_side], _cards[1-_side], last, pv, depth, alpha);
+    } 
 #endif
 
     _last = last;

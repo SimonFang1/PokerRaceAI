@@ -16,8 +16,8 @@ class HashCache {
         }
     };
     struct hashcode {
-        std::size_t operator() (const Key &k) const {
-            std::size_t res = 0;
+        unsigned long long operator() (const Key &k) const {
+            unsigned long long res = 0;
             for (auto x: k.card1) {
                 res = (res << 1) ^ x;
             }
@@ -52,8 +52,9 @@ public:
               const CardStyle &last, int depth) {
         _it = _table.find(Key(c1, c2, last));
         if (_it == _table.end()) return false;
-        if (_it->second.depth >= depth) return true;
-        return false;
+        return true;
+        // if (_it->second.depth >= depth) return true;
+        // return false;
     }
     Value& get() {
         return _it->second;
