@@ -315,3 +315,42 @@ principal variation:
 A c pass 9 Q K A C pass 9 0 pass 8 A pass 4446 pass 7 0 pass KK pass 3 5 6 pass 0 pass Q pass 3 
 bestmove: A
 ```
+
+```bash
+run C208776554443 cAKQJJ009863
+
+depth 6
+score: -519, time: 0.240666s
+principal variation: 
+44477 pass 55 00 pass 3 pass 
+
+depth 7
+score: -120, time: 2.53895s
+principal variation: 
+44477 pass 55 00 pass J pass 
+
+depth 8
+score: -514, time: 7.47996s
+principal variation: 
+44477 pass 55 00 pass J pass 3 
+
+depth 9
+score: -107, time: 55.3702s
+principal variation: 
+44477 pass 55 00 pass 8 0 J pass 
+
+depth 10
+score: -342, time: 164.755s
+principal variation: 
+345678 890JQK pass 3 5 6 7 0 pass J 
+
+depth 11
+score: 0, time: 433.055s
+principal variation: 
+345678 890JQK pass 3 7 0 C pass 44 pass 5 
+
+score: 29963, time: 433.056s
+principal variation: 
+3 6 8 9 0 J pass 8 pass J pass Q pass K pass A pass 3 4 c C pass 6 pass 4 pass 4 pass 5 pass 5 pass 7 0 2 pass 7 
+bestmove: 3
+```
