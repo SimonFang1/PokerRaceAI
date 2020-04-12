@@ -32,8 +32,6 @@ BattleWithLandlord& BattleWithLandlord::operator=(const BattleWithLandlord &that
         _side = 0;
         _ready = true;
         _stopsearch = false;
-        PrintCards();
-        cout << endl << "last: " << Translate(_last) << " "  << endl;
     }
     return *this;
 }
@@ -44,6 +42,7 @@ void BattleWithLandlord::cui_exec() {
     _running = true;
     while (_running) {
         getline(_is, cmd);
+        _os << endl;
         stringstream ss;
         ss << cmd;
         cmd.clear();
