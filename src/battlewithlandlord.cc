@@ -369,7 +369,7 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                         prev = c->first;
                         auto count_ = count;
                         for (auto it = c; it != count.end();) {
-                            count_[it->first] -= 3;
+                            count_[it->first] = 0; // in case of 333 + 3
 
                             vector<multiset<byte> > comb_res;
                             if (GenCarry(count_, len, carry, comb_res)) {
@@ -438,7 +438,7 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                         }
                     }
                 }
-                continue;
+                ms.clear();
             }
             if (last.type == CardStyle::MONO) {
                 if (c->first <= last.id) continue;
@@ -512,7 +512,7 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                     int prev = c->first;
                     auto count_ = count;
                     for (auto it = c; it != count.end();) {
-                        count_[it->first] -= 3;
+                        count_[it->first] = 0;
 
                         vector<multiset<byte> > comb_res;
                         if (len == last.len && GenCarry(count_, len, last.carry, comb_res)) {
