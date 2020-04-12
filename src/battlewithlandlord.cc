@@ -106,7 +106,7 @@ bool BattleWithLandlord::Str2CardStyle(const string &str, CardStyle &style) {
     for (auto x: str) {
         ms.insert(_name2id[x]);
     }
-    auto res = GenStrategy(ms, _last);
+    auto res = GenStrategy(ms, CardStyle());
     for (auto x: res) {
         if (x.pattern.size() == str.size()) {
             style = x;
