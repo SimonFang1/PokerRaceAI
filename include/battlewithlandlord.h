@@ -48,41 +48,16 @@ public:
 
     std::vector<CardStyle> GenStrategy(const std::multiset<byte> &style, const CardStyle &last) const;
 
-    std::vector<CardStyle> GenStrategy_ex();
-
-    CardStyle GenStrategy_greedy(const std::multiset<byte> &style, const CardStyle &last) const;
-
-    std::pair<std::vector<std::vector<CardStyle> >, std::vector<std::vector<CardStyle> > >
-    Partition(std::multiset<byte> a, std::multiset<byte> b) const;
-
-    std::vector<std::vector<CardStyle> >
-    Partition(std::multiset<byte> a) const;
-
-    CardStyle BetterThan(const std::multiset<byte> &cards, const CardStyle &a, const CardStyle &b) const;
-
     void Move(const std::multiset<byte> &pattern);
 
     void Unmove(const std::multiset<byte> &pattern);
     
     int Evaluate() const;
 
-    int Eval_weight_ex() const;
     int Eval_weight() const;
-
-    inline int Eval_len_diff() const {
-        return  _cards[1].size() - _cards[0].size();
-    }
-
-    int Eval_cmp() const;
-
-    int Eval_respond() const;
-
-    int Eval_turns() const;
 
     int AlphaBeta(int depth, int alpha, int beta, std::list<CardStyle> &pv);
     void AlphaBetaDFS(BattleWithLandlord *bld, int &score, bool &res);
     
     int GetBestMove(int depth = 128);
-
-    void PrintPartition();
 };
