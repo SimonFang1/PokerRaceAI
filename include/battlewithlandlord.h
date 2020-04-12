@@ -40,6 +40,8 @@ public:
     std::mutex _mtx, _mtx2;
     // std::condition_variable _cv;
 
+    bool Str2CardStyle(const std::string &str, CardStyle &res);
+
     static bool GenCarry(const std::map<byte, int> &count,
                          unsigned len, int carry,
                          std::vector<std::multiset<byte> > &res);

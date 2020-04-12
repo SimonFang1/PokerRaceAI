@@ -28,8 +28,8 @@ BattleWithLandlord& BattleWithLandlord::operator=(const BattleWithLandlord &that
         _cards[0] = that._cards[0];
         _cards[1] = that._cards[1];
         _last = that._last;
-        _round = 0;
-        _side = 0;
+        _round = that._round;
+        _side = that._side;
         _ready = true;
         _stopsearch = false;
     }
@@ -66,25 +66,54 @@ void BattleWithLandlord::cui_exec() {
                 std::lock_guard<std::mutex> lck(_mtx);
                 _stopsearch = true;
             }
-            {
-                std::lock_guard<std::mutex> lck(_mtx2);
-                Move(_pv.front().pattern);
-            }
         } else if (cmd == "m" || cmd == "move") {
             string str;
             ss >> str;
-            multiset<byte> pattern;
-            if (str.size() && str != "pass") {
-                for (auto x: str) {
-                    pattern.insert(_name2id[x]);
-                }
+
+            CardStyle style;
+
+            bool valid = Str2CardStyle(str, style);
+            if (!valid ||
+                style.type != CardStyle::PASS && !(_last < style) ||
+                style.type == CardStyle::PASS && _last.type == CardStyle::PASS) {
+                _os << "illegal move" << endl;
+                continue;
             }
-            Move(pattern);
+            {
+                std::lock_guard<std::mutex> lck(_mtx2);
+                Move(style.pattern);
+                _last = style;
+
+                _round = 0;
+                _stopsearch = false;
+            }
+            _thread = thread(std::mem_fun(&BattleWithLandlord::Run), this);
+            _thread.detach();
         } else {
             _os << "invalid command" << endl;
         }
     }
     
+}
+
+bool BattleWithLandlord::Str2CardStyle(const string &str, CardStyle &style) {
+    if (str.empty() || str == "" || str == "pass") {
+        style = CardStyle();
+        return true;
+    }
+
+    multiset<byte> ms;
+    for (auto x: str) {
+        ms.insert(_name2id[x]);
+    }
+    auto res = GenStrategy(ms, _last);
+    for (auto x: res) {
+        if (x.pattern.size() == str.size()) {
+            style = x;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool BattleWithLandlord::LoadCards(const string &str1, const string &str2, const string &last) {
@@ -96,26 +125,8 @@ bool BattleWithLandlord::LoadCards(const string &str1, const string &str2, const
     for (auto x: str2) {
         _cards[1].insert(_name2id[x]);
     }
-    bool valid;
-    _last = CardStyle();
-
-    if (last.empty() || last == "" || last == "pass") {
-        valid = true;
-    } else {
-        multiset<byte> ms;
-        for (auto x: last) {
-            ms.insert(_name2id[x]);
-        }
-        auto res = GenStrategy(ms, _last);
-        valid = false;
-        for (auto x: res) {
-            if (x.pattern.size() == last.size()) {
-                _last = x;
-                valid = true;
-                break;
-            }
-        }
-    }
+    
+    bool valid = Str2CardStyle(last, _last);
 
     _round = 0;
     _side = 0;

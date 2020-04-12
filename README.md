@@ -3,6 +3,17 @@
 
 仿照象棋类AI，利用[alpha-beta搜索](http://www.xqbase.com/computer/search_alphabeta.htm)，求解最优出牌策略。
 
+## 安装
+
+cmake 编译运行
+
+```bash
+mkdir build
+cd build
+cmake ..
+make -j2
+./battlewithlandlord
+```
 
 ## 引擎命令
 
@@ -53,7 +64,72 @@ bestmove: AA
 
 ```
 
-从而赢得游戏。
+最后获得胜利。
+
+
+也可以通过输入 move 出牌，引擎会自动切换视角开始搜索。
+
+```bash
+run AAK003 AKQJJ00
+
+depth 6
+score: 40, time: 0.00270049s
+principal variation: 
+00 JJ AA pass 3 Q 
+
+score: 29985, time: 0.00280196s
+principal variation: 
+K A pass 00 pass Q A pass 3 pass 0 J A pass 0 
+bestmove: K
+
+move K
+
+depth 6
+score: 225, time: 0.00113703s
+principal variation: 
+A pass 00 pass J pass 
+
+score: -29986, time: 0.00121695s
+principal variation: 
+A pass 00 pass Q A pass 3 pass 0 J A pass 0 
+bestmove: A
+
+m A
+
+depth 6
+score: -142, time: 0.000682424s
+principal variation: 
+pass 00 pass J pass J 
+
+score: 29987, time: 0.000729094s
+principal variation: 
+pass 00 pass Q A pass 3 pass 0 J A pass 0 
+bestmove: pass
+
+m pass
+
+depth 6
+score: 0, time: 0.000618376s
+principal variation: 
+00 pass J A pass 00 pass 
+
+score: -29988, time: 0.000686211s
+principal variation: 
+00 pass Q A pass 3 pass 0 J A pass 0 
+bestmove: 00
+
+m JJ
+
+depth 6
+score: 29995, time: 0.00013174s
+principal variation: 
+AA pass 00 pass 3 
+
+score: 29995, time: 0.000589385s
+principal variation: 
+AA pass 00 pass 3 
+bestmove: AA
+```
 
 ## 用例2
 
@@ -93,7 +169,6 @@ principal variation:
 444KK 55000 pass KK pass AA pass 3 5 7 8 pass 99 pass 6 pass 7 pass 8 pass 2 
 bestmove: 444KK
 ```
-
 
 ## 用例4
 
@@ -165,4 +240,75 @@ score: 29965, time: 110.881s
 principal variation: 
 3 6 0 2 c pass 3 K pass 6 9 pass QQ pass 9 pass J A pass 3 pass 8 pass 8 pass 4 5 0 K A pass 4 K pass 5 
 bestmove: 3
+```
+
+
+```bash
+run 22J99876654 c2AQ00766543
+
+depth 6
+score: 320, time: 0.0716138s
+principal variation: 
+456789 pass 6 2 pass 34567 pass 
+
+depth 7
+score: 320, time: 0.500095s
+principal variation: 
+456789 pass 6 2 pass 34567 pass 
+
+depth 8
+score: 20, time: 2.10745s
+principal variation: 
+45678 pass 99 00 22 pass 6 7 
+
+depth 9
+score: 220, time: 9.33624s
+principal variation: 
+45678 pass 99 00 22 pass 6 Q pass 
+
+depth 10
+score: 0, time: 30.2344s
+principal variation: 
+7 0 2 Q 
+
+score: 29969, time: 30.2345s
+principal variation: 
+6 7 9 0 J 2 pass c pass 4 5 pass 6 pass 4 pass 7 pass 22 pass 8 0 pass 66 pass Q pass A pass 3 9 
+bestmove: 6
+```
+
+
+```bash
+
+run AAKKQQ0008633 CcAK997655444
+
+depth 6
+score: 400, time: 0.574094s
+principal variation: 
+33 cC pass 44455 000QQ pass 
+
+depth 7
+score: 640, time: 2.04485s
+principal variation: 
+KK pass 33 cC pass 44455 pass 
+
+depth 8
+score: 233, time: 13.0908s
+principal variation: 
+QQ pass 33 55 00 cC pass 4446 pass 
+
+depth 9
+score: 400, time: 43.1871s
+principal variation: 
+33 55 QQ pass 6000 cC pass 4446 pass 
+
+depth 10
+score: 0, time: 51.3442s
+principal variation: 
+33000 pass AA cC 
+
+score: 29969, time: 51.3442s
+principal variation: 
+A c pass 9 Q K A C pass 9 0 pass 8 A pass 4446 pass 7 0 pass KK pass 3 5 6 pass 0 pass Q pass 3 
+bestmove: A
 ```
