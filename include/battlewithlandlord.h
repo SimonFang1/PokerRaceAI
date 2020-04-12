@@ -5,7 +5,9 @@
 
 class BattleWithLandlord {
 public:
-    BattleWithLandlord(std::istream &is, std::ostream &os);
+    BattleWithLandlord(std::istream &is = std::cin, std::ostream &os = std::cout);
+
+    BattleWithLandlord& operator=(const BattleWithLandlord &that);
 
     void cui_exec();
 
@@ -78,8 +80,9 @@ public:
     int Eval_turns() const;
 
     int AlphaBeta(int depth, int alpha, int beta, std::list<CardStyle> &pv);
+    void AlphaBetaDFS(BattleWithLandlord *bld, int &score, bool &res);
     
-    int GetBestMove(int depth);
+    int GetBestMove(int depth = 128);
 
     void PrintPartition();
 };

@@ -23,6 +23,22 @@ BattleWithLandlord::BattleWithLandlord(istream &is, ostream &os):_is(is), _os(os
     _ready = false;
 }
 
+BattleWithLandlord& BattleWithLandlord::operator=(const BattleWithLandlord &that) {
+    if (this != &that) {
+        _cards[0] = that._cards[0];
+        _cards[1] = that._cards[1];
+        _last = that._last;
+        _round = 0;
+        _side = 0;
+        _ready = true;
+        _stopsearch = false;
+        PrintCards();
+        cout << endl << "last: " << Translate(_last) << " "  << endl;
+    }
+    return *this;
+}
+
+
 void BattleWithLandlord::cui_exec() {
     string cmd;
     _running = true;
@@ -83,7 +99,10 @@ bool BattleWithLandlord::LoadCards(const string &str1, const string &str2, const
     }
     bool valid;
     _last = CardStyle();
-    if (last != "" && last != "pass") {
+
+    if (last.empty() || last == "" || last == "pass") {
+        valid = true;
+    } else {
         multiset<byte> ms;
         for (auto x: last) {
             ms.insert(_name2id[x]);
@@ -94,11 +113,11 @@ bool BattleWithLandlord::LoadCards(const string &str1, const string &str2, const
             if (x.pattern.size() == last.size()) {
                 _last = x;
                 valid = true;
+                break;
             }
         }
-    } else {
-        valid = true;
     }
+
     _round = 0;
     _side = 0;
     _ready = true;
@@ -128,43 +147,85 @@ string BattleWithLandlord::Translate(const multiset<byte> &pattern) {
 
 void BattleWithLandlord::Run() {
     if (!_ready) {
-        cout << "_cards are not loaded yet" << endl;
+        _os << "_cards are not loaded yet" << endl;
         return;
     }
-    auto start = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lck(_mtx2);
     CardStyle bestmove;
     // PrintPartition();
-    for (int i = 5; !_stopsearch && i < 32; ++i) {
-        cout << "depth " << i << endl;
-        int val = GetBestMove(i);
+
+    BattleWithLandlord bld(cin, cout);
+    bld = *this;
+
+    int score, score_dfs, score_ab;
+    bool res_dfs;
+    list<CardStyle> pv;
+
+    auto start = std::chrono::steady_clock::now();
+    auto th = thread(&BattleWithLandlord::AlphaBetaDFS,
+                     this, &bld, std::ref(score_dfs), std::ref(res_dfs));
+
+    for (int i = 6; i < 128; ++i) {
+        _os << "depth " << i << endl;
+        score_ab = GetBestMove(i);
         if (!_stopsearch) bestmove = _pv.front();
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapse = end-start;
-        cout << "score: " << val << ", time: " << elapse.count() << "s" << endl;
-        cout << "principal variation: " << endl;
+        _os << "score: " << score_ab << ", time: " << elapse.count() << "s" << endl;
+        _os << "principal variation: " << endl;
         for (auto x: _pv) {
-            cout << Translate(x) << " ";
+            _os << Translate(x) << " ";
         }
-        cout << endl << endl;
-        if (val > WIN_SCORE || val < -WIN_SCORE) break;
+        _os << endl << endl;
+        if (_stopsearch || score_ab > WIN_SCORE || score_ab < -WIN_SCORE) {
+            {
+                std::lock_guard<std::mutex> lck(bld._mtx);
+                bld._stopsearch = true;
+            }
+            break;
+        }
     }
-    cout << "bestmove: " << Translate(bestmove) << endl;
+
+    th.join();
+
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapse = end-start;
+
+    if (res_dfs) {
+        score = score_dfs;
+        pv = bld._pv;
+    } else {
+        score = score_ab;
+        pv = _pv;
+    }
+    bestmove = pv.front();
+
+    _os << "score: " << score << ", time: " << elapse.count() << "s" << endl;
+    _os << "principal variation: " << endl;
+    for (auto x: pv) {
+        _os << Translate(x) << " ";
+    }
+    _os << endl;
+    _os << "bestmove: " << Translate(bestmove) << endl << endl;
+}
+
+void BattleWithLandlord::AlphaBetaDFS(BattleWithLandlord *bld, int &score, bool &res) {
+
+    score = bld->GetBestMove(128);
+    if (score > WIN_SCORE || score < -WIN_SCORE) {
+        {
+            std::lock_guard<std::mutex> lck(_mtx);
+            _stopsearch = true;
+        }
+        res = true;
+    } else {
+        res = false;
+    }
 }
 
 void BattleWithLandlord::PrintCards() {
     cout << "cards0: " << Translate(_cards[0]) << endl;
     cout << "cards1: " << Translate(_cards[1]) << endl;
-    auto &&res1 = GenStrategy(_cards[0], _last);
-    for (auto x: res1) {
-        cout << Translate(x) << " ";
-    }
-    cout << endl;
-    auto &&res2 = GenStrategy(_cards[1], _last);
-    for (auto x: res2) {
-        cout << Translate(x) << " ";
-    }
-    cout << endl;
 }
 
 bool BattleWithLandlord::GenCarry(const map<byte, int> &count, unsigned len, int carry, vector<multiset<byte> > &res) {
@@ -294,10 +355,10 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                         ms.insert(c->first);
                         ms.insert(c->first);
                         ms.insert(c->first);
-                        int len = 1;
-                        int prev = c->first;
+                        len = 1;
+                        prev = c->first;
                         auto count_ = count;
-                        for (auto it = c; next(it) != count.end();) {
+                        for (auto it = c; it != count.end();) {
                             count_[it->first] -= 3;
 
                             vector<multiset<byte> > comb_res;
@@ -310,8 +371,7 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                                     all.emplace_back(CardStyle::TRIPLE, c->first, _union, len, carry);
                                 }
                             }
-
-                            if ((++it)->first != ++prev || it->second < 3) break;
+                            if (++it == count.end() || it->first != ++prev || it->second < 3) break;
                             ms.insert(it->first);
                             ms.insert(it->first);
                             ms.insert(it->first);
@@ -441,7 +501,7 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                     int len = 1;
                     int prev = c->first;
                     auto count_ = count;
-                    for (auto it = c; next(it) != count.end();) {
+                    for (auto it = c; it != count.end();) {
                         count_[it->first] -= 3;
 
                         vector<multiset<byte> > comb_res;
@@ -456,7 +516,7 @@ vector<CardStyle> BattleWithLandlord::GenStrategy(const multiset<byte> &style, c
                             break;
                         }
 
-                        if ((++it)->first != ++prev || it->second < 3) break;
+                        if (++it == count.end() || it->first != ++prev || it->second < 3) break;
                         ms.insert(it->first);
                         ms.insert(it->first);
                         ms.insert(it->first);
@@ -854,7 +914,7 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
     auto strategies = GenStrategy();
 
     if (!_cards[_side].size() || !_cards[1-_side].size() || 
-        depth <= 0 && strategies.size() < 1) {
+        depth <= 0 && strategies.size() > 1) {
         
         auto v = Evaluate();
         int score = _side ? -v: v;
@@ -895,7 +955,7 @@ int BattleWithLandlord::AlphaBeta(int depth, int alpha, int beta, list<CardStyle
 }
 
 int BattleWithLandlord::GetBestMove(int depth) {
-    if (depth <= 0) depth = 100;
+    if (depth <= 0) depth = 128;
     _max_depth = depth;
     return AlphaBeta(depth, -MAX_SCORE, MAX_SCORE, _pv);
 }
